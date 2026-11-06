@@ -1,0 +1,57 @@
+services:
+  postgis:
+    image: kartoza/postgis:${POSTGIS_VERSION_TAG}
+    container_name: euclid-pg
+    env_file: .env
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+      SCHEMA_NAME: ${DATABASE_SCHEMA}
+      IGNORE_INIT_HOOK_LOCKFILE: true
+      POSTGRES_INITDB_WALDIR: ""  # Fixes "unbound variable" error
+    ports:
+      - 5439:${DATABASE_PORT}
+    volumes:
+      - postgis-data:/var/lib/postgresql
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - euclides-network
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=${DATABASE_PASSWORD} pg_isready -h 127.0.0.1 -U ${DATABASE_USER} -d ${DATABASE_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nest:
+    container_name: euclid-api
+    build:
+      context: ./spatial-operations
+      dockerfile: Dockerfile
+      target: development # Switches to the dev stage of the Dockerfile
+    user: root
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+    ports:
+      - 5006:${NEST_PORT}
+      - 9229:9229
+    volumes:
+      - ./spatial-operations:/usr/src/app # Sync source code
+      - /usr/src/app/node_modules      # ANONYMOUS VOLUME
+    # Command for hot-reloading
+    command: npm run start:dev
+    env_file: .env
+    networks:
+      - euclides-network
+    depends_on:
+      postgis:
+        condition: service_healthy
+
+
+volumes:
+  postgis-data:
+
+networks:
+  euclides-network:
+    name: htl-euclides-net
