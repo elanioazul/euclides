@@ -23,6 +23,58 @@ services:
       timeout: 5s
       retries: 5
 
+  # ---------------------------------------------------------------------------
+  # OpenRouteService (prebuilt GIScience image, routing only)
+  # Nest reaches it at http://ors:8082/ors  (ORS_BASE_URL in .env)
+  # ---------------------------------------------------------------------------
+  ors:
+    image: openrouteservice/openrouteservice:${ORS_IMAGE_TAG}
+    container_name: euclid-ors
+    restart: unless-stopped
+    # No env_file on purpose: keeps DB credentials out of the ORS container.
+    environment:
+      ORS_CONFIG_LOCATION: /home/ors/config/ors-config.yml
+      # True  = delete and rebuild graphs on every container start.
+      # False = reuse graphs in the ors-graphs volume (built automatically if empty).
+      REBUILD_GRAPHS: ${ORS_REBUILD_GRAPHS}
+      CONTAINER_LOG_LEVEL: ${ORS_CONTAINER_LOG_LEVEL}
+      XMS: ${ORS_XMS}
+      XMX: ${ORS_XMX}
+      # Fail fast on OOM so Docker restarts the container instead of leaving a
+      # half-dead JVM answering health checks.
+      ADDITIONAL_JAVA_OPTS: "-XX:+ExitOnOutOfMemoryError"
+    ports:
+      # Host access for debugging only (curl, Swagger). Bound to loopback so it
+      # is not reachable from the LAN. Remove entirely in production.
+      - 127.0.0.1:${ORS_HOST_PORT}:8082
+    volumes:
+      - ./ors-config.yml:/home/ors/config/ors-config.yml:ro
+      - ${ORS_PBF_HOST_PATH}:/home/ors/files/aviles-gijon-oviedo.osm.pbf:ro
+      - ors-graphs:/home/ors/graphs
+      - ./ors/logs:/home/ors/logs
+    networks:
+      - euclides-network
+    deploy:
+      resources:
+        limits:
+          # Must be comfortably above XMX (JVM off-heap, metaspace, threads).
+          memory: ${ORS_MEM_LIMIT}
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    healthcheck:
+      # /ors/v2/health returns 200 {"status":"ready"} only after all enabled
+      # profiles are loaded; 503 while graphs are still building.
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8082/ors/v2/health || exit 1"]
+      # A small regional extract builds in minutes. Failures during
+      # start_period do not count; the first success flips to healthy.
+      start_period: 15m
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   nest:
     container_name: euclid-api
     build:
@@ -51,6 +103,7 @@ services:
 
 volumes:
   postgis-data:
+  ors-graphs:
 
 networks:
   euclides-network:

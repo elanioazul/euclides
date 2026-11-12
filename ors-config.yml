@@ -1,0 +1,100 @@
+##############################################################################
+# openrouteservice configuration for the euclid stack
+#
+# Target image : openrouteservice/openrouteservice:v10.1.0 (v9+ config schema)
+# Loaded via   : ORS_CONFIG_LOCATION=/home/ors/config/ors-config.yml
+# Precedence   : environment variables > this file > ORS internal defaults
+#
+# Scope: routing only, single profile (driving-car), no elevation,
+# no isochrones / matrix / snap / export.
+# Source data: aviles-gijon-oviedo.osm.pbf (~0.02 GB).
+# Reference for every available key: "Ors config_default_v10.1.0.yml".
+##############################################################################
+
+ors:
+  # ---------------------------------------------------------------------------
+  # HTTP endpoints. Everything except /ors/v2/directions is switched off so the
+  # container exposes the smallest possible surface.
+  # ---------------------------------------------------------------------------
+  endpoints:
+    routing:
+      enabled: true
+    isochrones:
+      enabled: false
+    matrix:
+      enabled: false
+    snap:
+      enabled: false
+    export:
+      enabled: false
+
+  engine:
+    init_threads: 1
+
+    # false = build graphs (if missing or REBUILD_GRAPHS=True) and then serve.
+    preparation_mode: false
+
+    # RAM_STORE keeps the graph in heap: fastest queries. Switch to MMAP if
+    # memory is tight (slower, but much lower heap).
+    graphs_data_access: RAM_STORE
+
+    # -------------------------------------------------------------------------
+    # Defaults inherited by every profile below.
+    # -------------------------------------------------------------------------
+    profile_default:
+      # Only profiles explicitly enabled under `profiles` are loaded.
+      enabled: false
+      graph_path: /home/ors/graphs
+      build:
+        # Bind-mounted read-only from the host (see ORS_PBF_HOST_PATH in .env).
+        source_file: /home/ors/files/aviles-gijon-oviedo.osm.pbf
+        # REQUIRED, do not remove: the ORS internal default is
+        # profile_default.build.elevation=true. Without this line driving-car
+        # would download SRTM/GMTED tiles and build an elevation-aware graph.
+        elevation: false
+        instructions: true
+      service:
+        # Upper bound on coordinates per directions request. Hybrid routes
+        # with many ORS legs must be chunked by the API if they exceed this.
+        maximum_waypoints: 50
+        # Max distance (m) ORS searches to snap an input point onto the graph.
+        # Random points far from any road will be rejected (error 2010).
+        maximum_snapping_radius: 350
+
+    profiles:
+      # Served at POST /ors/v2/directions/driving-car[/geojson]
+      driving-car:
+        enabled: true
+        encoder_name: driving-car
+        service:
+          # The extract spans tens of km; 150 km is a generous ceiling that
+          # still rejects nonsense requests early.
+          maximum_distance: 150000
+
+# -----------------------------------------------------------------------------
+# Logging. The image writes its application log to /home/ors/logs/ors.log,
+# which is bind-mounted to ./ors/logs on the host. Container stdout is rotated
+# by the Docker json-file driver configured in docker-compose.yaml.
+# -----------------------------------------------------------------------------
+logging:
+  level:
+    root: WARN
+    org.heigit: INFO
+
+# -----------------------------------------------------------------------------
+# Settings related to springdoc
+# -----------------------------------------------------------------------------
+swagger-ui:
+  enabled: true
+  path: /swagger-ui
+  tryItOutEnabled: true
+  filter: false
+  syntaxHighlight:
+    activated: true
+  showExtensions: true
+api-docs:
+  # springdoc enables this endpoint whenever the property is unset, but warns on every startup
+  # until it is stated explicitly. Setting it here is a no-op behaviourally and silences that.
+  enabled: false
+  path: /v2/api-docs
+  version: OPENAPI_3_0
