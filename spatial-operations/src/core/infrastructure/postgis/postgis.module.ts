@@ -25,7 +25,7 @@ import { PostgisLoggerModule } from '../postgis-logger/postgis-logger.module.js'
           // since this is native pg PoolConfig interface and it does not have a schema property.
           // That configuration option belongs to ORMs like TypeORM
           // Any raw SQL queries executed through this pool will now target your specified schema by default.
-          options: `-c search_path=routes,public`, //routes is the schema to interact with
+          options: `-c search_path=routing,public`, //routing is the schema to interact with
           max: 20, // High-concurrency tuning=> Max number of clients in the pool
           idleTimeoutMillis: 30000,
           connectionTimeoutMillis: 2000,
