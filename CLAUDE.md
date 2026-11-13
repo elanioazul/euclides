@@ -60,13 +60,17 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 
 ## Project
-A dockerized restAPI based in nest that act as a middleware between openrouteservice and postgis (the first for driving-car profile logic and the second for storing data routes)
+A dockerized restAPI based in nest that act as a middleware between openrouteservice and postgis (the first for driving-car profile logic and the second for storing data routes).
 
 ## Stack
-docker, nest.js (v12.0.1), postgis (v17-3.5) and openrouteservice (v10.1.0)
+- docker 
+- node v24.15.0
+- nest.js (v12.0.1)
+- postgis (v17-3.5)
+- openrouteservice (v10.1.0)
 
 ## Aim
-Achiving the following restAPI sequence:
+Achiving the following restAPI sequence (Mermaid/Excalidraw notation):
 sequenceDiagram
     autonumber
     actor User as User / Leaflet Client
@@ -147,22 +151,23 @@ ors-config.yml
 README.md
 
 ## Rules
-- use strict typing (No `any` in TypeScript). Use TypeScript strict for all new files
-- component names in PascalCase and method names in camelCase
-- use exensibly Swagger package to openapi the restAPI built
-- in nest.js, use pipes for transformation and validation
+- Use strict typing (No `any` in TypeScript). Use TypeScript strict for all new files
+- Defensive code required
+- Component names in PascalCase and method names in camelCase
+- Use exensibly Swagger package to openapi the restAPI we are building
+- In nest.js, use pipes for transformation and validation
 
 ## Prohibitions
 
 ## Workflow
+For each feature:
+- Present a plan
+- Wait for my approval
 - Branches: feature/<ticket>, fix/<ticket>
+- Test it building running the images (docker compose up)
+- Make neccesary unit testing
 - Conventional commits mandatory
 - PR review required before merge
-
-## Out of scope
-
-## Human approval required
-
 
 ## Geospatial Stack Preferences
 - Prefer Typescript-based approaches
@@ -170,3 +175,11 @@ README.md
 - My preference for geospatial packages are below
   - turf.js for managing vector geospatial data if needed
   - flatgeobuf for data encoding (Deserialize FlatGeobuf into GeoJSON features & Serialize GeoJSON to FlatGeobuf)
+  - typeorm (spatial index & spatial columns)
+  - raw postgisSQL queries
+
+## Other Preferences
+- Write code that is simple to understand
+- Explain the code with comments only when its a difficult part
+- Do not use emojis
+- Always install npm packages and make the container shipped read them sucessfully. Ask the user for confirmation before installing any dependency needed.
