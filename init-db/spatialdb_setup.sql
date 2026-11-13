@@ -5,10 +5,10 @@ CREATE EXTENSION IF NOT EXISTS postgis_topology;
 CREATE EXTENSION IF NOT EXISTS postgis_tiger_geocoder;
 
 -- Ensure required schemas exist in spatialdb
-CREATE SCHEMA IF NOT EXISTS routing;
+CREATE SCHEMA IF NOT EXISTS routes;
 
 -- Set search path for convenience
-ALTER DATABASE spatialdb SET search_path TO "$user", public, routing;
+ALTER DATABASE spatialdb SET search_path TO "$user", public, routes;
 
 -- Verify PostGIS installation
 DO $$
