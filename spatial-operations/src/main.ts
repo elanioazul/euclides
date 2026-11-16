@@ -9,6 +9,7 @@ import {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks(); // Lets TypeORM close the PostGIS pools on SIGTERM (docker compose stop)
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,               // Strip away properties that don't have decorators
     forbidNonWhitelisted: true,    // Throw an error if extra properties are sent
