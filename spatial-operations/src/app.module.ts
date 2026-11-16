@@ -3,7 +3,7 @@ import { PostgisModule } from './core/infrastructure/postgis/postgis.module.js';
 import { ConfigModule } from '@nestjs/config';
 import { SharedModule } from './shared/shared.module.js';
 import { RoutingModule } from './features/routing/routing.module.js';
-import { ROUTING_CONNECTION } from './core/infrastructure/postgis/consts/database_constants.js';
+import { SPATIALDB_CONNECTION } from './core/infrastructure/postgis/consts/database_constants.js';
 import Joi from 'joi';
 
 @Module({
@@ -20,7 +20,7 @@ import Joi from 'joi';
       }),
     }),
     // Reads the DATABASE_* env vars above. Add one call per extra connection (with its own envPrefix).
-    PostgisModule.forRootAsync({ name: ROUTING_CONNECTION }),
+    PostgisModule.forRootAsync({ name: SPATIALDB_CONNECTION }),
     SharedModule,
     RoutingModule,
   ],

@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { RoutingService } from './routing.service.js';
 import { Route } from './entities/routing.entity.js';
 import {
-  ROUTING_CONNECTION,
+  SPATIALDB_CONNECTION,
   getPostgisServiceToken,
 } from '../../core/infrastructure/postgis/consts/database_constants.js';
 
@@ -14,8 +14,8 @@ describe('RoutingService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RoutingService,
-        { provide: getRepositoryToken(Route, ROUTING_CONNECTION), useValue: {} },
-        { provide: getPostgisServiceToken(ROUTING_CONNECTION), useValue: {} },
+        { provide: getRepositoryToken(Route, SPATIALDB_CONNECTION), useValue: {} },
+        { provide: getPostgisServiceToken(SPATIALDB_CONNECTION), useValue: {} },
       ],
     }).compile();
 

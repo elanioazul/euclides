@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SpatialUtilsService } from './spatial-utils.service.js';
 import {
-  ROUTING_CONNECTION,
+  SPATIALDB_CONNECTION,
   getPostgisServiceToken,
 } from '../../../core/infrastructure/postgis/consts/database_constants.js';
 
@@ -12,7 +12,7 @@ describe('SpatialUtilsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SpatialUtilsService,
-        { provide: getPostgisServiceToken(ROUTING_CONNECTION), useValue: {} },
+        { provide: getPostgisServiceToken(SPATIALDB_CONNECTION), useValue: {} },
       ],
     }).compile();
 
