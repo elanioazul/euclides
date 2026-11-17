@@ -2,7 +2,7 @@ import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, Update
 import type { LineString } from 'geojson';
 
 // Schema comes from the DataSource (DATABASE_SCHEMA), so it is not hard-coded here
-@Entity({ name: 'routes' })
+@Entity({ database: "spatialdb", schema: 'routing', name: 'routes' })
 export class Route {
   @PrimaryGeneratedColumn()
   id: number;
