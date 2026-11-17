@@ -29,7 +29,7 @@ export class PostgisModule {
       imports: [
         PostgisLoggerModule,
         TypeOrmModule.forRootAsync({
-          name: options.name,
+          name: options.name, //check https://docs.nestjs.com/data/typeorm#multiple-databases
           inject: [ConfigService],
           useFactory: (configService: ConfigService): TypeOrmModuleOptions => {
             const schema = configService.getOrThrow<string>(`${prefix}SCHEMA`);
