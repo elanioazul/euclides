@@ -164,7 +164,7 @@ README.md
 For each feature:
 - Present a plan
 - Wait for my approval
-- Branches: feature/<ticket>, fix/<ticket>
+- Branches: feature/<ticket>, fix/<ticket>, doc/<ticket>
 - Test it building running the images (docker compose up)
 - Make neccesary unit testing
 - Conventional commits mandatory
