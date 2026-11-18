@@ -75,7 +75,7 @@ services:
       retries: 3
 
   nest:
-    container_name: euclid-api
+    container_name: euclid-apirest
     build:
       context: ./spatial-operations
       dockerfile: Dockerfile
