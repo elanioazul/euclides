@@ -1,1 +1,26 @@
-export class Routing {}
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
+import type { LineString } from 'geojson';
+
+// The schema is always explicit: the DataSource has no default schema.
+// No `database` option: the Postgres driver ignores it, the DataSource already targets spatialdb.
+@Entity({ schema: 'routing', name: 'routes' })
+export class Route {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'varchar', length: 255 })
+  name: string;
+
+  @Column({ type: 'text', nullable: true })
+  description: string | null;
+
+  @Index({ spatial: true })
+  @Column({ type: 'geometry', spatialFeatureType: 'LineString', srid: 4326 })
+  geom: LineString;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
+  updatedAt: Date;
+}

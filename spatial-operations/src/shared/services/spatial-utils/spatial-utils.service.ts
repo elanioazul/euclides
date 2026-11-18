@@ -1,10 +1,12 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PostgisService } from '../../../core/infrastructure/postgis/postgis.service.js';
+import { InjectPostgis } from '../../../core/infrastructure/postgis/postgis.decorator.js';
+import { SPATIALDB_CONNECTION } from '../../../core/infrastructure/postgis/consts/database_constants.js';
 
 
 @Injectable()
 export class SpatialUtilsService {
-    constructor(private readonly postgis: PostgisService) {}
+    constructor(@InjectPostgis(SPATIALDB_CONNECTION) private readonly postgis: PostgisService) {}
 
     async checkSchemaExists(schema: string): Promise<boolean> {
         if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schema)) {

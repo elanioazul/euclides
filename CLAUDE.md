@@ -156,6 +156,7 @@ README.md
 - Component names in PascalCase and method names in camelCase
 - Use exensibly Swagger package to openapi the restAPI we are building
 - In nest.js, use pipes for transformation and validation
+- In early stages of the apiREST development, lets set synchronize: true in the TYPEORM connexion, but take into account that you have to show me at some point how to operate with migrations.
 
 ## Prohibitions
 

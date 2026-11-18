@@ -1,26 +1,35 @@
-import { Injectable, Inject } from '@nestjs/common';
-import { Pool, QueryResult } from 'pg';
-import { PG_POOL } from './consts/database_constants.js';
+import { OnModuleInit } from '@nestjs/common';
+import { Pool, QueryResult, QueryResultRow } from 'pg';
+import { DataSource } from 'typeorm';
+import { PostgresDriver } from 'typeorm/driver/postgres/PostgresDriver.js';
 import { PostgisLoggerService } from '../postgis-logger/postgis-logger.service.js';
 
-@Injectable()
-export class PostgisService {
+// Not @Injectable: one instance per connection is built by PostgisModule.forRootAsync()
+// and injected with @InjectPostgis(<connection name>).
+export class PostgisService implements OnModuleInit {
     constructor(
-        @Inject(PG_POOL) private readonly pool: Pool,
-        private readonly logger: PostgisLoggerService
+        private readonly dataSource: DataSource,
+        private readonly logger: PostgisLoggerService,
+        connectionName: string
     ) {
-        this.logger.setContext('PostgisService');
+        this.logger.setContext(`PostgisService:${connectionName}`);
+    }
+
+    // TypeORM's postgres driver keeps its native pg Pool in `master`, so raw SQL and
+    // TypeORM repositories share the same connections.
+    private get pool(): Pool {
+        return (this.dataSource.driver as PostgresDriver).master as Pool;
     }
 
     onModuleInit() {
         this.logger.log('PostgreSQL Connection Pool initialized.');
     }
 
-    async query(text: string, params?: any[]): Promise<QueryResult> {
+    async query<T extends QueryResultRow = QueryResultRow>(text: string, params?: unknown[]): Promise<QueryResult<T>> {
         const start = Date.now();
 
         try {
-            const result = await this.pool.query(text, params);
+            const result = await this.pool.query<T>(text, params);
             const duration = Date.now() - start;
 
             // Log the performance and pool health

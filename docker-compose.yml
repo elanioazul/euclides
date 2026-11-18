@@ -7,7 +7,6 @@ services:
       POSTGRES_DB: ${DATABASE_NAME}
       POSTGRES_USER: ${DATABASE_USER}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      SCHEMA_NAME: ${DATABASE_SCHEMA}
       IGNORE_INIT_HOOK_LOCKFILE: true
       POSTGRES_INITDB_WALDIR: ""  # Fixes "unbound variable" error
     ports:
@@ -76,7 +75,7 @@ services:
       retries: 3
 
   nest:
-    container_name: euclid-api
+    container_name: euclid-apirest
     build:
       context: ./spatial-operations
       dockerfile: Dockerfile
