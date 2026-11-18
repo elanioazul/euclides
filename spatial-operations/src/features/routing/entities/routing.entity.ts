@@ -1,8 +1,9 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 import type { LineString } from 'geojson';
 
-// Schema comes from the DataSource (DATABASE_SCHEMA), so it is not hard-coded here
-@Entity({ database: "spatialdb", schema: 'routing', name: 'routes' })
+// The schema is always explicit: the DataSource has no default schema.
+// No `database` option: the Postgres driver ignores it, the DataSource already targets spatialdb.
+@Entity({ schema: 'routing', name: 'routes' })
 export class Route {
   @PrimaryGeneratedColumn()
   id: number;

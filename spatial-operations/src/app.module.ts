@@ -16,7 +16,6 @@ import Joi from 'joi';
         DATABASE_USER: Joi.string().required(),
         DATABASE_PASSWORD: Joi.string().required(),
         DATABASE_NAME: Joi.string().required(),
-        DATABASE_SCHEMA: Joi.string().default('routing'),
       }),
     }),
     // Reads the DATABASE_* env vars above. Add one call per extra connection (with its own envPrefix).

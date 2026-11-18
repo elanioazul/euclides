@@ -11,7 +11,7 @@ export interface PostgisConnectionOptions {
   // DataSource name, used by TypeOrmModule.forFeature(..., name) and @InjectPostgis(name)
   name: string;
   // Prefix of the env vars holding the credentials: <prefix>HOST, <prefix>PORT, <prefix>USER,
-  // <prefix>PASSWORD, <prefix>NAME, <prefix>SCHEMA. They must be validated in AppModule.
+  // <prefix>PASSWORD, <prefix>NAME. They must be validated in AppModule.
   envPrefix?: string;
 }
 
@@ -31,28 +31,26 @@ export class PostgisModule {
         TypeOrmModule.forRootAsync({
           name: options.name, //check https://docs.nestjs.com/data/typeorm#multiple-databases
           inject: [ConfigService],
-          useFactory: (configService: ConfigService): TypeOrmModuleOptions => {
-            const schema = configService.getOrThrow<string>(`${prefix}SCHEMA`);
-            return {
-              type: 'postgres',
-              host: configService.getOrThrow<string>(`${prefix}HOST`),
-              port: configService.getOrThrow<number>(`${prefix}PORT`),
-              username: configService.getOrThrow<string>(`${prefix}USER`),
-              password: configService.getOrThrow<string>(`${prefix}PASSWORD`),
-              database: configService.getOrThrow<string>(`${prefix}NAME`),
-              schema, // default schema for TypeORM entities
-              synchronize: false, // tables are created by init-db scripts, never by TypeORM
-              autoLoadEntities: true,
-              // `extra` is passed untouched to the underlying pg Pool
-              extra: {
-                // search_path makes unqualified names in raw SQL resolve to this schema first
-                options: `-c search_path=${schema},public`,
-                max: 20, // High-concurrency tuning=> Max number of clients in the pool
-                idleTimeoutMillis: 30000,
-                connectionTimeoutMillis: 2000,
-              },
-            };
-          },
+          // No default schema or search_path: entities declare @Entity({ schema }) and raw SQL
+          // names its schema (routing.routes). Unqualified names fall back to Postgres' "$user", public.
+          useFactory: (configService: ConfigService): TypeOrmModuleOptions => ({
+            type: 'postgres',
+            host: configService.getOrThrow<string>(`${prefix}HOST`),
+            port: configService.getOrThrow<number>(`${prefix}PORT`),
+            username: configService.getOrThrow<string>(`${prefix}USER`),
+            password: configService.getOrThrow<string>(`${prefix}PASSWORD`),
+            database: configService.getOrThrow<string>(`${prefix}NAME`),
+            // Dev only: TypeORM creates/alters entity tables on startup. Replace with migrations later.
+            // It never creates schemas, so they must exist (init-db/spatialdb_setup.sql).
+            synchronize: true,
+            autoLoadEntities: true,
+            // `extra` is passed untouched to the underlying pg Pool
+            extra: {
+              max: 20, // High-concurrency tuning=> Max number of clients in the pool
+              idleTimeoutMillis: 30000,
+              connectionTimeoutMillis: 2000,
+            },
+          }),
         }),
       ],
       providers: [
