@@ -74,6 +74,15 @@ export class RoutingService {
     return { id: row.id, name: row.name, description: row.description, type: row.type, createdAt: row.created_at };
   }
 
+  // Metadata only (no geometry, no segments), newest first: feeds the client's route list
+  async findAll(): Promise<RouteSummaryDto[]> {
+    const routes = await this.routeRepository.find({
+      select: { id: true, name: true, description: true, type: true, createdAt: true },
+      order: { createdAt: 'DESC', id: 'DESC' },
+    });
+    return routes.map(({ id, name, description, type, createdAt }) => ({ id, name, description, type, createdAt }));
+  }
+
   private async resolveSegment(segment: RouteSegmentDto, index: number): Promise<ResolvedSegment> {
     const stored: StoredSegment = { mode: segment.mode, geometry: segment.geometry };
     switch (segment.mode) {
