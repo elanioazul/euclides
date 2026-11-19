@@ -1,34 +1,22 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Body } from '@nestjs/common';
+import { ApiBadRequestResponse, ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RoutingService } from './routing.service.js';
-import { CreateRoutingDto } from './dto/create-routing.dto.js';
-import { UpdateRoutingDto } from './dto/update-routing.dto.js';
+import { CreateRouteDto } from './dto/create-route.dto.js';
+import { RouteSummaryDto } from './dto/route-summary.dto.js';
 
-@Controller('routing')
+@ApiTags('routes')
+@Controller('routes')
 export class RoutingController {
   constructor(private readonly routingService: RoutingService) {}
 
   @Post()
-  create(@Body() createRoutingDto: CreateRoutingDto) {
-    return this.routingService.create(createRoutingDto);
-  }
-
-  @Get()
-  findAll() {
-    return this.routingService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.routingService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateRoutingDto: UpdateRoutingDto) {
-    return this.routingService.update(+id, updateRoutingDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.routingService.remove(+id);
+  @ApiOperation({
+    summary: 'Create a route from ordered segments',
+    description: 'The route type (random, ors, hybrid) is derived from the segment modes.',
+  })
+  @ApiCreatedResponse({ type: RouteSummaryDto })
+  @ApiBadRequestResponse({ description: 'Invalid payload (geometry, coordinates or segment continuity)' })
+  create(@Body() createRouteDto: CreateRouteDto): Promise<RouteSummaryDto> {
+    return this.routingService.create(createRouteDto);
   }
 }
