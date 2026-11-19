@@ -1,4 +1,4 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import { HttpException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { Position } from 'geojson';
@@ -15,6 +15,7 @@ import { SPATIALDB_CONNECTION } from '../../core/infrastructure/postgis/consts/d
 import { InjectPostgis } from '../../core/infrastructure/postgis/postgis.decorator.js';
 import { PostgisService } from '../../core/infrastructure/postgis/postgis.service.js';
 import { OrsService } from '../../core/infrastructure/ors/ors.service.js';
+import type { OrsRoute } from '../../core/infrastructure/ors/ors.types.js';
 
 interface ResolvedSegment {
   stored: StoredSegment;
@@ -54,7 +55,7 @@ export class RoutingService {
 
   async create(createRouteDto: CreateRouteDto): Promise<RouteSummaryDto> {
     // ORS legs are requested in parallel; Promise.all keeps the segment order for stitching
-    const resolved = await Promise.all(createRouteDto.segments.map((segment) => this.resolveSegment(segment)));
+    const resolved = await Promise.all(createRouteDto.segments.map((segment, index) => this.resolveSegment(segment, index)));
     const segments = resolved.map((item) => item.stored);
     const geometry = stitchLegs(resolved.map((item) => item.leg));
     const type = deriveRouteType(segments.map((segment) => segment.mode));
@@ -73,15 +74,31 @@ export class RoutingService {
     return { id: row.id, name: row.name, description: row.description, type: row.type, createdAt: row.created_at };
   }
 
-  private async resolveSegment(segment: RouteSegmentDto): Promise<ResolvedSegment> {
+  private async resolveSegment(segment: RouteSegmentDto, index: number): Promise<ResolvedSegment> {
     const stored: StoredSegment = { mode: segment.mode, geometry: segment.geometry };
     switch (segment.mode) {
       case SegmentMode.Manual:
         return { stored, leg: segment.geometry.coordinates };
       case SegmentMode.Ors: {
-        const route = await this.ors.getDrivingRoute(segment.geometry.coordinates);
+        const route = await this.routeOrsSegment(segment, index);
         return { stored: { ...stored, orsProperties: route.properties }, leg: route.geometry.coordinates };
       }
+    }
+  }
+
+  // Keeps the ORS status code but names the failing segment, e.g. "segments[1] (ors): Could not find routable point..."
+  private async routeOrsSegment(segment: RouteSegmentDto, index: number): Promise<OrsRoute> {
+    try {
+      return await this.ors.getDrivingRoute(segment.geometry.coordinates);
+    } catch (error) {
+      if (!(error instanceof HttpException)) throw error;
+      const response = error.getResponse();
+      const body = typeof response === 'object' ? response : { message: response };
+      throw new HttpException(
+        { ...body, message: `segments[${index}] (${segment.mode}): ${error.message}` },
+        error.getStatus(),
+        { cause: error },
+      );
     }
   }
 }
