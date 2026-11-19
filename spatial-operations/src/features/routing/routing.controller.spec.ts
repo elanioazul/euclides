@@ -4,11 +4,12 @@ import { RoutingService } from './routing.service.js';
 
 describe('RoutingController', () => {
   let controller: RoutingController;
+  const routingService = { findAll: vi.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [RoutingController],
-      providers: [{ provide: RoutingService, useValue: {} }],
+      providers: [{ provide: RoutingService, useValue: routingService }],
     }).compile();
 
     controller = module.get<RoutingController>(RoutingController);
@@ -16,5 +17,11 @@ describe('RoutingController', () => {
 
   it('should be defined', () => {
     expect(controller).toBeDefined();
+  });
+
+  it('findAll returns the service summaries', async () => {
+    const summaries = [{ id: 1, name: 'Walk', description: null, type: 'random', createdAt: new Date() }];
+    routingService.findAll.mockResolvedValue(summaries);
+    await expect(controller.findAll()).resolves.toBe(summaries);
   });
 });

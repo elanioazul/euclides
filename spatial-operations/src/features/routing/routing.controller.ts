@@ -1,10 +1,11 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body } from '@nestjs/common';
 import {
   ApiBadGatewayResponse,
   ApiBadRequestResponse,
   ApiBody,
   ApiCreatedResponse,
   ApiGatewayTimeoutResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiServiceUnavailableResponse,
   ApiTags,
@@ -36,5 +37,15 @@ export class RoutingController {
   @ApiGatewayTimeoutResponse({ description: 'OpenRouteService did not answer in time' })
   create(@Body() createRouteDto: CreateRouteDto): Promise<RouteSummaryDto> {
     return this.routingService.create(createRouteDto);
+  }
+
+  @Get()
+  @ApiOperation({
+    summary: 'List all routes (metadata only)',
+    description: 'Returns id, name, description, type and createdAt, newest first. Geometry and segments are not included.',
+  })
+  @ApiOkResponse({ type: RouteSummaryDto, isArray: true })
+  findAll(): Promise<RouteSummaryDto[]> {
+    return this.routingService.findAll();
   }
 }

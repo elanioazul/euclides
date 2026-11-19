@@ -18,6 +18,7 @@ import type { OrsRoute } from '../../core/infrastructure/ors/ors.types.js';
 describe('RoutingService', () => {
   const postgis = { query: vi.fn() };
   const ors = { getDrivingRoute: vi.fn() };
+  const routeRepository = { find: vi.fn() };
   let service: RoutingService;
 
   const createdAt = new Date('2026-11-19T10:00:00Z');
@@ -34,7 +35,7 @@ describe('RoutingService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RoutingService,
-        { provide: getRepositoryToken(Route, SPATIALDB_CONNECTION), useValue: {} },
+        { provide: getRepositoryToken(Route, SPATIALDB_CONNECTION), useValue: routeRepository },
         { provide: getPostgisServiceToken(SPATIALDB_CONNECTION), useValue: postgis },
         { provide: OrsService, useValue: ors },
       ],
@@ -192,6 +193,32 @@ describe('RoutingService', () => {
           segments: [{ mode: SegmentMode.Manual, geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] } }],
         }),
       ).rejects.toThrow('The route was not stored');
+    });
+  });
+
+  describe('findAll', () => {
+    it('selects metadata only, newest first, and maps it to summaries', async () => {
+      const createdAt2 = new Date('2026-11-19T11:00:00Z');
+      routeRepository.find.mockResolvedValue([
+        { id: 2, name: 'Drive', description: null, type: RouteType.Ors, createdAt: createdAt2 },
+        { id: 1, name: 'Walk', description: 'Estuary', type: RouteType.Random, createdAt },
+      ]);
+
+      const result = await service.findAll();
+
+      expect(routeRepository.find).toHaveBeenCalledWith({
+        select: { id: true, name: true, description: true, type: true, createdAt: true },
+        order: { createdAt: 'DESC', id: 'DESC' },
+      });
+      expect(result).toEqual([
+        { id: 2, name: 'Drive', description: null, type: RouteType.Ors, createdAt: createdAt2 },
+        { id: 1, name: 'Walk', description: 'Estuary', type: RouteType.Random, createdAt },
+      ]);
+    });
+
+    it('returns an empty list when there are no routes', async () => {
+      routeRepository.find.mockResolvedValue([]);
+      await expect(service.findAll()).resolves.toEqual([]);
     });
   });
 });
