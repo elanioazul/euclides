@@ -4,9 +4,10 @@ import { RoutingService } from './routing.service.js';
 import { RoutingController } from './routing.controller.js';
 import { Route } from './entities/routing.entity.js';
 import { SPATIALDB_CONNECTION } from '../../core/infrastructure/postgis/consts/database_constants.js';
+import { OrsModule } from '../../core/infrastructure/ors/ors.module.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Route], SPATIALDB_CONNECTION)],
+  imports: [TypeOrmModule.forFeature([Route], SPATIALDB_CONNECTION), OrsModule],
   controllers: [RoutingController],
   providers: [RoutingService],
 })

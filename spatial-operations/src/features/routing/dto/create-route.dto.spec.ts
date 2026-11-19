@@ -39,6 +39,21 @@ describe('CreateRouteDto', () => {
     expect(errors.length).toBeGreaterThan(0);
   });
 
+  it('accepts an ors segment with up to 50 waypoints and rejects 51', async () => {
+    const waypoints = (count: number) => Array.from({ length: count }, (_v, i) => [-5.9 + i * 0.001, 43.5]);
+    const ors = (count: number) => ({ mode: 'ors', geometry: { type: 'LineString', coordinates: waypoints(count) } });
+
+    expect(await validatePayload({ name: 'Drive', segments: [ors(50)] })).toHaveLength(0);
+    expect(messagesOf(await validatePayload({ name: 'Drive', segments: [ors(51)] }))).toContain(
+      'geometry must have at most 50 waypoints in an ors segment',
+    );
+  });
+
+  it('does not apply the waypoint limit to manual segments', async () => {
+    const coordinates = Array.from({ length: 60 }, (_v, i) => [-5.9 + i * 0.001, 43.5]);
+    expect(await validatePayload({ name: 'Walk', segments: [manual(coordinates)] })).toHaveLength(0);
+  });
+
   it('rejects a geometry that is not a LineString', async () => {
     const errors = await validatePayload({
       name: 'Walk',

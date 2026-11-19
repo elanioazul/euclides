@@ -16,6 +16,8 @@ import Joi from 'joi';
         DATABASE_USER: Joi.string().required(),
         DATABASE_PASSWORD: Joi.string().required(),
         DATABASE_NAME: Joi.string().required(),
+        ORS_BASE_URL: Joi.string().uri().required(),
+        ORS_REQUEST_TIMEOUT_MS: Joi.number().integer().positive().required(),
       }),
     }),
     // Reads the DATABASE_* env vars above. Add one call per extra connection (with its own envPrefix).
