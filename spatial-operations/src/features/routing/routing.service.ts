@@ -1,16 +1,26 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import type { Position } from 'geojson';
 import { CreateRouteDto } from './dto/create-route.dto.js';
+import { RouteSegmentDto } from './dto/route-segment.dto.js';
 import { RouteSummaryDto } from './dto/route-summary.dto.js';
 import { Route } from './entities/routing.entity.js';
 import { RouteType } from './enums/route-type.enum.js';
+import { SegmentMode } from './enums/segment-mode.enum.js';
 import type { StoredSegment } from './interfaces/stored-segment.interface.js';
 import { deriveRouteType, stitchLegs } from './route-geometry.builder.js';
 import { METRIC_SRID, SIMPLIFY_TOLERANCE_M } from './consts/routing.consts.js';
 import { SPATIALDB_CONNECTION } from '../../core/infrastructure/postgis/consts/database_constants.js';
 import { InjectPostgis } from '../../core/infrastructure/postgis/postgis.decorator.js';
 import { PostgisService } from '../../core/infrastructure/postgis/postgis.service.js';
+import { OrsService } from '../../core/infrastructure/ors/ors.service.js';
+
+interface ResolvedSegment {
+  stored: StoredSegment;
+  // Coordinates that make up this stretch of the final route
+  leg: Position[];
+}
 
 interface RouteSummaryRow {
   id: number;
@@ -39,11 +49,14 @@ export class RoutingService {
   constructor(
     @InjectRepository(Route, SPATIALDB_CONNECTION) private readonly routeRepository: Repository<Route>,
     @InjectPostgis(SPATIALDB_CONNECTION) private readonly postgis: PostgisService,
+    private readonly ors: OrsService,
   ) {}
 
   async create(createRouteDto: CreateRouteDto): Promise<RouteSummaryDto> {
-    const segments: StoredSegment[] = createRouteDto.segments;
-    const geometry = stitchLegs(segments.map((segment) => segment.geometry.coordinates));
+    // ORS legs are requested in parallel; Promise.all keeps the segment order for stitching
+    const resolved = await Promise.all(createRouteDto.segments.map((segment) => this.resolveSegment(segment)));
+    const segments = resolved.map((item) => item.stored);
+    const geometry = stitchLegs(resolved.map((item) => item.leg));
     const type = deriveRouteType(segments.map((segment) => segment.mode));
 
     const result = await this.postgis.query<RouteSummaryRow>(INSERT_ROUTE_SQL, [
@@ -58,5 +71,17 @@ export class RoutingService {
     const row = result.rows[0];
     if (!row) throw new InternalServerErrorException('The route was not stored');
     return { id: row.id, name: row.name, description: row.description, type: row.type, createdAt: row.created_at };
+  }
+
+  private async resolveSegment(segment: RouteSegmentDto): Promise<ResolvedSegment> {
+    const stored: StoredSegment = { mode: segment.mode, geometry: segment.geometry };
+    switch (segment.mode) {
+      case SegmentMode.Manual:
+        return { stored, leg: segment.geometry.coordinates };
+      case SegmentMode.Ors: {
+        const route = await this.ors.getDrivingRoute(segment.geometry.coordinates);
+        return { stored: { ...stored, orsProperties: route.properties }, leg: route.geometry.coordinates };
+      }
+    }
   }
 }

@@ -29,4 +29,12 @@ describe('deriveRouteType', () => {
   it('is random when every segment is manual', () => {
     expect(deriveRouteType([SegmentMode.Manual, SegmentMode.Manual])).toBe(RouteType.Random);
   });
+
+  it('is ors when every segment is ors', () => {
+    expect(deriveRouteType([SegmentMode.Ors, SegmentMode.Ors])).toBe(RouteType.Ors);
+  });
+
+  it('is hybrid when modes are mixed', () => {
+    expect(deriveRouteType([SegmentMode.Manual, SegmentMode.Ors])).toBe(RouteType.Hybrid);
+  });
 });

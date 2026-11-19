@@ -1,1 +1,0 @@
-export const ORS = 'http://ors:8080/ors';
