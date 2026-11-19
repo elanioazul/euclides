@@ -1,10 +1,11 @@
-import { HttpException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { HttpException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { Position } from 'geojson';
+import type { LineString, Position } from 'geojson';
 import { CreateRouteDto } from './dto/create-route.dto.js';
 import { RouteSegmentDto } from './dto/route-segment.dto.js';
 import { RouteSummaryDto } from './dto/route-summary.dto.js';
+import { RouteFeatureDto } from './dto/route-feature.dto.js';
 import { Route } from './entities/routing.entity.js';
 import { RouteType } from './enums/route-type.enum.js';
 import { SegmentMode } from './enums/segment-mode.enum.js';
@@ -30,6 +31,20 @@ interface RouteSummaryRow {
   type: RouteType;
   created_at: Date;
 }
+
+interface RouteFeatureRow extends RouteSummaryRow {
+  segments: StoredSegment[];
+  geometry: LineString;
+}
+
+// Largest value of the integer id column: bigger ids cannot exist and would make Postgres fail
+const MAX_ROUTE_ID = 2_147_483_647;
+
+// pg parses json/jsonb columns, so geometry and segments arrive as objects
+const SELECT_ROUTE_FEATURE_SQL = `
+  SELECT id, name, description, type, segments, created_at, ST_AsGeoJSON(geom, 6)::json AS geometry
+  FROM routing.routes
+  WHERE id = $1`;
 
 // Simplified in metres (METRIC_SRID) and stored back in EPSG:4326.
 // preserveCollapsed = true keeps very short routes from collapsing to nothing.
@@ -81,6 +96,26 @@ export class RoutingService {
       order: { createdAt: 'DESC', id: 'DESC' },
     });
     return routes.map(({ id, name, description, type, createdAt }) => ({ id, name, description, type, createdAt }));
+  }
+
+  async findOne(id: number): Promise<RouteFeatureDto> {
+    if (id < 1 || id > MAX_ROUTE_ID) throw new NotFoundException(`Route ${id} not found`);
+
+    const result = await this.postgis.query<RouteFeatureRow>(SELECT_ROUTE_FEATURE_SQL, [id]);
+    const row = result.rows[0];
+    if (!row) throw new NotFoundException(`Route ${id} not found`);
+    return {
+      type: 'Feature',
+      id: row.id,
+      geometry: row.geometry,
+      properties: {
+        name: row.name,
+        description: row.description,
+        type: row.type,
+        segments: row.segments,
+        createdAt: row.created_at,
+      },
+    };
   }
 
   private async resolveSegment(segment: RouteSegmentDto, index: number): Promise<ResolvedSegment> {

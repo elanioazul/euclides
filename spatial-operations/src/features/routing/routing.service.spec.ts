@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { HttpException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
+import { HttpException, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { RoutingService } from './routing.service.js';
 import { Route } from './entities/routing.entity.js';
 import { SegmentMode } from './enums/segment-mode.enum.js';
@@ -219,6 +219,40 @@ describe('RoutingService', () => {
     it('returns an empty list when there are no routes', async () => {
       routeRepository.find.mockResolvedValue([]);
       await expect(service.findAll()).resolves.toEqual([]);
+    });
+  });
+
+  describe('findOne', () => {
+    it('returns the route as a GeoJSON Feature with metadata and segments in properties', async () => {
+      const geometry = { type: 'LineString', coordinates: [[-5.9248, 43.556], [-5.8494, 43.3614]] };
+      const segments: StoredSegment[] = [
+        { mode: SegmentMode.Ors, geometry: { type: 'LineString', coordinates: [[-5.9248, 43.556], [-5.8494, 43.3614]] }, orsProperties: orsRoute.properties },
+      ];
+      postgis.query.mockResolvedValue({
+        rows: [{ id: 9, name: 'Drive', description: null, type: RouteType.Ors, segments, created_at: createdAt, geometry }],
+      });
+
+      const feature = await service.findOne(9);
+
+      const [sql, params] = postgis.query.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain('ST_AsGeoJSON(geom, 6)');
+      expect(params).toEqual([9]);
+      expect(feature).toEqual({
+        type: 'Feature',
+        id: 9,
+        geometry,
+        properties: { name: 'Drive', description: null, type: RouteType.Ors, segments, createdAt },
+      });
+    });
+
+    it('throws 404 when the route does not exist', async () => {
+      postgis.query.mockResolvedValue({ rows: [] });
+      await expect(service.findOne(404)).rejects.toThrow(new NotFoundException('Route 404 not found'));
+    });
+
+    it.each([0, -1, 2_147_483_648])('throws 404 without querying for the impossible id %d', async (id) => {
+      await expect(service.findOne(id)).rejects.toBeInstanceOf(NotFoundException);
+      expect(postgis.query).not.toHaveBeenCalled();
     });
   });
 });
