@@ -23,6 +23,25 @@ describe('stitchLegs', () => {
     ]);
     expect(line.coordinates).toEqual([[0, 0], [1, 1], [1.001, 1.001], [2, 2], [0, 0]]);
   });
+
+  it('joins consecutive ors legs whose snapped ends differ through a connector', () => {
+    const line = stitchLegs([
+      [[0, 0], [0.5, 0.5], [0.9999, 1]],
+      [[1.0002, 1], [1.5, 1.5], [2, 2]],
+    ]);
+    expect(line.coordinates).toEqual([[0, 0], [0.5, 0.5], [0.9999, 1], [1.0002, 1], [1.5, 1.5], [2, 2]]);
+  });
+
+  it('always returns one LineString with no repeated consecutive vertices at the joins', () => {
+    const line = stitchLegs([
+      [[0, 0], [1, 1]],
+      [[1, 1], [2, 2]],
+      [[2, 2], [3, 3]],
+      [[3, 3], [4, 4]],
+    ]);
+    expect(line.type).toBe('LineString');
+    expect(line.coordinates).toEqual([[0, 0], [1, 1], [2, 2], [3, 3], [4, 4]]);
+  });
 });
 
 describe('deriveRouteType', () => {

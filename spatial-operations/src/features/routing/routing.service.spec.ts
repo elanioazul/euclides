@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { UnprocessableEntityException } from '@nestjs/common';
+import { HttpException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { RoutingService } from './routing.service.js';
 import { Route } from './entities/routing.entity.js';
 import { SegmentMode } from './enums/segment-mode.enum.js';
@@ -109,6 +109,69 @@ describe('RoutingService', () => {
       });
     });
 
+    it('keeps a single shared vertex when ORS starts exactly where the previous manual segment ended', async () => {
+      ors.getDrivingRoute.mockResolvedValue({ ...orsRoute, geometry: { type: 'LineString', coordinates: [[1, 1], [2, 2]] } });
+      postgis.query.mockResolvedValue(insertedRow(RouteType.Hybrid));
+
+      await service.create({
+        name: 'Mixed',
+        segments: [
+          { mode: SegmentMode.Manual, geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] } },
+          { mode: SegmentMode.Ors, geometry: { type: 'LineString', coordinates: [[1, 1], [2, 2]] } },
+        ],
+      });
+
+      expect(JSON.parse(insertParams()[4] as string)).toEqual({ type: 'LineString', coordinates: [[0, 0], [1, 1], [2, 2]] });
+    });
+
+    it('routes consecutive ors segments separately and stitches them in segment order', async () => {
+      const first: OrsRoute = { ...orsRoute, geometry: { type: 'LineString', coordinates: [[0, 0.0001], [1, 1.0001]] } };
+      const second: OrsRoute = { ...orsRoute, geometry: { type: 'LineString', coordinates: [[1, 0.9999], [2, 2]] } };
+      // The second call resolves first: the stitched order must still follow the segments
+      ors.getDrivingRoute
+        .mockImplementationOnce(() => new Promise((resolve) => setTimeout(() => resolve(first), 5)))
+        .mockResolvedValueOnce(second);
+      postgis.query.mockResolvedValue(insertedRow(RouteType.Ors));
+
+      await service.create({
+        name: 'Drive twice',
+        segments: [
+          { mode: SegmentMode.Ors, geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] } },
+          { mode: SegmentMode.Ors, geometry: { type: 'LineString', coordinates: [[1, 1], [2, 2]] } },
+        ],
+      });
+
+      expect(ors.getDrivingRoute).toHaveBeenCalledTimes(2);
+      const params = insertParams();
+      expect(params[2]).toBe(RouteType.Ors);
+      expect(JSON.parse(params[4] as string)).toEqual({
+        type: 'LineString',
+        coordinates: [[0, 0.0001], [1, 1.0001], [1, 0.9999], [2, 2]],
+      });
+    });
+
+    it.each([
+      ['an ORS rejection', new UnprocessableEntityException('Could not find routable point'), 422],
+      ['ORS not ready', new ServiceUnavailableException('OpenRouteService is not ready'), 503],
+    ])('names the failing segment on %s and keeps the status code', async (_case, orsError, status) => {
+      ors.getDrivingRoute.mockRejectedValue(orsError);
+
+      const error: unknown = await service
+        .create({
+          name: 'Mixed',
+          segments: [
+            { mode: SegmentMode.Manual, geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] } },
+            { mode: SegmentMode.Ors, geometry: { type: 'LineString', coordinates: [[1, 1], [2, 2]] } },
+          ],
+        })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(HttpException);
+      const httpError = error as HttpException;
+      expect(httpError.getStatus()).toBe(status);
+      expect(httpError.getResponse()).toMatchObject({ statusCode: status, message: `segments[1] (ors): ${orsError.message}` });
+    });
+
     it('does not store anything when ORS cannot route a segment', async () => {
       ors.getDrivingRoute.mockRejectedValue(new UnprocessableEntityException('Could not find routable point'));
 
@@ -117,7 +180,7 @@ describe('RoutingService', () => {
           name: 'Sea',
           segments: [{ mode: SegmentMode.Ors, geometry: { type: 'LineString', coordinates: [[-6.5, 44], [-5.84, 43.36]] } }],
         }),
-      ).rejects.toBeInstanceOf(UnprocessableEntityException);
+      ).rejects.toBeInstanceOf(HttpException);
       expect(postgis.query).not.toHaveBeenCalled();
     });
 
