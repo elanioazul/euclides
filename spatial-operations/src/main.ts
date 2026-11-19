@@ -10,6 +10,7 @@ import {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableShutdownHooks(); // Lets TypeORM close the PostGIS pools on SIGTERM (docker compose stop)
+  app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,               // Strip away properties that don't have decorators
     forbidNonWhitelisted: true,    // Throw an error if extra properties are sent
@@ -37,7 +38,7 @@ async function bootstrap() {
     operationIdFactory: (controllerKey: string, methodKey: string) => methodKey,
   };
   const document = SwaggerModule.createDocument(app, config, options);
-  SwaggerModule.setup(`api`, app, document);
+  SwaggerModule.setup(`api/docs`, app, document);
   app.enableCors();
   await app.listen(process.env.NEST_PORT ?? 3000);
   //docker ps --format "table {{.Names}}\t{{.Ports}}"
