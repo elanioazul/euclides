@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
 import {
   ApiBadGatewayResponse,
   ApiBadRequestResponse,
   ApiBody,
   ApiCreatedResponse,
   ApiGatewayTimeoutResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiServiceUnavailableResponse,
@@ -14,6 +15,7 @@ import {
 import { RoutingService } from './routing.service.js';
 import { CreateRouteDto } from './dto/create-route.dto.js';
 import { RouteSummaryDto } from './dto/route-summary.dto.js';
+import { RouteFeatureDto } from './dto/route-feature.dto.js';
 import { CREATE_ROUTE_EXAMPLES } from './dto/create-route.examples.js';
 
 @ApiTags('routes')
@@ -47,5 +49,17 @@ export class RoutingController {
   @ApiOkResponse({ type: RouteSummaryDto, isArray: true })
   findAll(): Promise<RouteSummaryDto[]> {
     return this.routingService.findAll();
+  }
+
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get one route as a GeoJSON Feature',
+    description: 'The Feature carries the stored geometry (6 decimals) and, in properties, the metadata and original segments.',
+  })
+  @ApiOkResponse({ type: RouteFeatureDto })
+  @ApiBadRequestResponse({ description: 'id is not an integer' })
+  @ApiNotFoundResponse({ description: 'No route with this id' })
+  findOne(@Param('id', ParseIntPipe) id: number): Promise<RouteFeatureDto> {
+    return this.routingService.findOne(id);
   }
 }
