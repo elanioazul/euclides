@@ -1,4 +1,18 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseBoolPipe,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBadGatewayResponse,
   ApiBadRequestResponse,
@@ -9,6 +23,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiQuery,
   ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnprocessableEntityResponse,
@@ -19,6 +34,8 @@ import { UpdateRouteDto } from './dto/update-route.dto.js';
 import { RouteSummaryDto } from './dto/route-summary.dto.js';
 import { RouteFeatureDto } from './dto/route-feature.dto.js';
 import { CREATE_ROUTE_EXAMPLES } from './dto/create-route.examples.js';
+
+const CONFIRM_REQUIRED = 'confirm=true is required to delete all routes';
 
 @ApiTags('routes')
 @Controller('routes')
@@ -91,5 +108,22 @@ export class RoutingController {
   @ApiNotFoundResponse({ description: 'No route with this id' })
   remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
     return this.routingService.remove(id);
+  }
+
+  @Delete()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete all routes',
+    description: 'Empties routing.routes and restarts the id sequence. Requires ?confirm=true.',
+  })
+  @ApiQuery({ name: 'confirm', type: Boolean, required: true, description: 'Must be true' })
+  @ApiNoContentResponse({ description: 'All routes were deleted' })
+  @ApiBadRequestResponse({ description: CONFIRM_REQUIRED })
+  removeAll(
+    @Query('confirm', new ParseBoolPipe({ exceptionFactory: () => new BadRequestException(CONFIRM_REQUIRED) }))
+    confirm: boolean,
+  ): Promise<void> {
+    if (!confirm) throw new BadRequestException(CONFIRM_REQUIRED);
+    return this.routingService.removeAll();
   }
 }
