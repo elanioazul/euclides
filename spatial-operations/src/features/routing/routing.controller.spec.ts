@@ -4,7 +4,7 @@ import { RoutingService } from './routing.service.js';
 
 describe('RoutingController', () => {
   let controller: RoutingController;
-  const routingService = { findAll: vi.fn(), findOne: vi.fn() };
+  const routingService = { findAll: vi.fn(), findOne: vi.fn(), update: vi.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -30,5 +30,12 @@ describe('RoutingController', () => {
     routingService.findOne.mockResolvedValue(feature);
     await expect(controller.findOne(3)).resolves.toBe(feature);
     expect(routingService.findOne).toHaveBeenCalledWith(3);
+  });
+
+  it('update passes the id and payload to the service', async () => {
+    const summary = { id: 3, name: 'Renamed', description: null, type: 'random', createdAt: new Date() };
+    routingService.update.mockResolvedValue(summary);
+    await expect(controller.update(3, { name: 'Renamed' })).resolves.toBe(summary);
+    expect(routingService.update).toHaveBeenCalledWith(3, { name: 'Renamed' });
   });
 });

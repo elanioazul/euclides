@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, ParseIntPipe } from '@nestjs/common';
 import {
   ApiBadGatewayResponse,
   ApiBadRequestResponse,
@@ -14,6 +14,7 @@ import {
 } from '@nestjs/swagger';
 import { RoutingService } from './routing.service.js';
 import { CreateRouteDto } from './dto/create-route.dto.js';
+import { UpdateRouteDto } from './dto/update-route.dto.js';
 import { RouteSummaryDto } from './dto/route-summary.dto.js';
 import { RouteFeatureDto } from './dto/route-feature.dto.js';
 import { CREATE_ROUTE_EXAMPLES } from './dto/create-route.examples.js';
@@ -61,5 +62,23 @@ export class RoutingController {
   @ApiNotFoundResponse({ description: 'No route with this id' })
   findOne(@Param('id', ParseIntPipe) id: number): Promise<RouteFeatureDto> {
     return this.routingService.findOne(id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Update a route',
+    description:
+      'name and description change only the metadata. segments replaces all segments and rebuilds the route as on create, ' +
+      'so geometry and type change too. Fields left out keep their value.',
+  })
+  @ApiOkResponse({ type: RouteSummaryDto })
+  @ApiBadRequestResponse({ description: 'Invalid payload, empty payload or non-integer id' })
+  @ApiNotFoundResponse({ description: 'No route with this id' })
+  @ApiUnprocessableEntityResponse({ description: 'OpenRouteService cannot route an ors segment; the message names it' })
+  @ApiBadGatewayResponse({ description: 'OpenRouteService is unreachable or failed' })
+  @ApiServiceUnavailableResponse({ description: 'OpenRouteService is not ready yet' })
+  @ApiGatewayTimeoutResponse({ description: 'OpenRouteService did not answer in time' })
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateRouteDto: UpdateRouteDto): Promise<RouteSummaryDto> {
+    return this.routingService.update(id, updateRouteDto);
   }
 }

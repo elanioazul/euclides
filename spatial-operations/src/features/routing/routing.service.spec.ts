@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { HttpException, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException, HttpException, NotFoundException, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { RoutingService } from './routing.service.js';
 import { Route } from './entities/routing.entity.js';
 import { SegmentMode } from './enums/segment-mode.enum.js';
@@ -252,6 +252,78 @@ describe('RoutingService', () => {
 
     it.each([0, -1, 2_147_483_648])('throws 404 without querying for the impossible id %d', async (id) => {
       await expect(service.findOne(id)).rejects.toBeInstanceOf(NotFoundException);
+      expect(postgis.query).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update', () => {
+    const updateParams = (): unknown[] => insertParams();
+
+    it('updates only the metadata when no segments are sent, without calling ORS', async () => {
+      postgis.query.mockResolvedValue(insertedRow(RouteType.Random));
+
+      const result = await service.update(7, { name: 'Renamed' });
+
+      const [sql] = postgis.query.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain('UPDATE routing.routes');
+      expect(sql).toContain('updated_at = now()');
+      // id, name, description sent?, description, type, segments, geometry, tolerance
+      expect(updateParams()).toEqual([7, 'Renamed', false, null, null, null, null, SIMPLIFY_TOLERANCE_M]);
+      expect(ors.getDrivingRoute).not.toHaveBeenCalled();
+      expect(result).toEqual({ id: 7, name: 'Route', description: null, type: RouteType.Random, createdAt });
+    });
+
+    it('clears the description when it is sent as null', async () => {
+      postgis.query.mockResolvedValue(insertedRow(RouteType.Random));
+      await service.update(7, { description: null });
+      expect(updateParams().slice(1, 4)).toEqual([null, true, null]);
+    });
+
+    it('rebuilds geometry, type and segments when segments are sent', async () => {
+      ors.getDrivingRoute.mockResolvedValue(orsRoute);
+      postgis.query.mockResolvedValue(insertedRow(RouteType.Hybrid));
+
+      await service.update(7, {
+        segments: [
+          { mode: SegmentMode.Manual, geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] } },
+          { mode: SegmentMode.Ors, geometry: { type: 'LineString', coordinates: [[1, 1], [2, 2]] } },
+        ],
+      });
+
+      const params = updateParams();
+      expect(params[1]).toBeNull();
+      expect(params[2]).toBe(false);
+      expect(params[4]).toBe(RouteType.Hybrid);
+      const stored = JSON.parse(params[5] as string) as StoredSegment[];
+      expect(stored.map((segment) => segment.orsProperties !== undefined)).toEqual([false, true]);
+      expect(JSON.parse(params[6] as string)).toEqual({
+        type: 'LineString',
+        coordinates: [[0, 0], [1, 1], [1.0001, 1.0001], [1.5, 1.5], [2, 2]],
+      });
+    });
+
+    it('rejects an empty update without touching the database', async () => {
+      await expect(service.update(7, {})).rejects.toBeInstanceOf(BadRequestException);
+      expect(postgis.query).not.toHaveBeenCalled();
+    });
+
+    it('throws 404 when the route does not exist', async () => {
+      postgis.query.mockResolvedValue({ rows: [] });
+      await expect(service.update(404, { name: 'Ghost' })).rejects.toThrow(new NotFoundException('Route 404 not found'));
+    });
+
+    it('throws 404 without querying for an impossible id', async () => {
+      await expect(service.update(0, { name: 'Ghost' })).rejects.toBeInstanceOf(NotFoundException);
+      expect(postgis.query).not.toHaveBeenCalled();
+    });
+
+    it('does not update anything when ORS cannot route a new segment', async () => {
+      ors.getDrivingRoute.mockRejectedValue(new UnprocessableEntityException('Could not find routable point'));
+      await expect(
+        service.update(7, {
+          segments: [{ mode: SegmentMode.Ors, geometry: { type: 'LineString', coordinates: [[-6.5, 44], [-5.84, 43.36]] } }],
+        }),
+      ).rejects.toBeInstanceOf(HttpException);
       expect(postgis.query).not.toHaveBeenCalled();
     });
   });
