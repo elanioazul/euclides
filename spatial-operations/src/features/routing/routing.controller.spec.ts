@@ -1,10 +1,11 @@
+import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { RoutingController } from './routing.controller.js';
 import { RoutingService } from './routing.service.js';
 
 describe('RoutingController', () => {
   let controller: RoutingController;
-  const routingService = { findAll: vi.fn(), findOne: vi.fn(), update: vi.fn(), remove: vi.fn() };
+  const routingService = { findAll: vi.fn(), findOne: vi.fn(), update: vi.fn(), remove: vi.fn(), removeAll: vi.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -43,5 +44,17 @@ describe('RoutingController', () => {
     routingService.remove.mockResolvedValue(undefined);
     await expect(controller.remove(3)).resolves.toBeUndefined();
     expect(routingService.remove).toHaveBeenCalledWith(3);
+  });
+
+  it('removeAll deletes every route when confirm is true', async () => {
+    routingService.removeAll.mockResolvedValue(undefined);
+    await expect(controller.removeAll(true)).resolves.toBeUndefined();
+    expect(routingService.removeAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('removeAll refuses with 400 when confirm is false', () => {
+    routingService.removeAll.mockClear();
+    expect(() => controller.removeAll(false)).toThrow(BadRequestException);
+    expect(routingService.removeAll).not.toHaveBeenCalled();
   });
 });

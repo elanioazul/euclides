@@ -345,4 +345,12 @@ describe('RoutingService', () => {
       expect(routeRepository.delete).not.toHaveBeenCalled();
     });
   });
+
+  describe('removeAll', () => {
+    it('truncates the table and restarts the id sequence', async () => {
+      postgis.query.mockResolvedValue({ rows: [] });
+      await expect(service.removeAll()).resolves.toBeUndefined();
+      expect(postgis.query).toHaveBeenCalledWith('TRUNCATE TABLE routing.routes RESTART IDENTITY');
+    });
+  });
 });

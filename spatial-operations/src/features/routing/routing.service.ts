@@ -60,6 +60,9 @@ const SELECT_ROUTE_FEATURE_SQL = `
   FROM routing.routes
   WHERE id = $1`;
 
+// Also resets the id sequence, so the next route gets id 1
+const TRUNCATE_ROUTES_SQL = 'TRUNCATE TABLE routing.routes RESTART IDENTITY';
+
 // Simplified in metres (METRIC_SRID) and stored back in EPSG:4326.
 // preserveCollapsed = true keeps very short routes from collapsing to nothing.
 // A NULL GeoJSON parameter gives a NULL geometry (used by UPDATE to keep the current one).
@@ -179,6 +182,10 @@ export class RoutingService {
     if (id < 1 || id > MAX_ROUTE_ID) throw new NotFoundException(`Route ${id} not found`);
     const result = await this.routeRepository.delete(id);
     if (!result.affected) throw new NotFoundException(`Route ${id} not found`);
+  }
+
+  async removeAll(): Promise<void> {
+    await this.postgis.query(TRUNCATE_ROUTES_SQL);
   }
 
   // Shared by create and update: route the ors segments, stitch all legs and derive the type
