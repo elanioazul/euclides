@@ -1,8 +1,15 @@
-import { HttpException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import type { LineString, Position } from 'geojson';
 import { CreateRouteDto } from './dto/create-route.dto.js';
+import { UpdateRouteDto } from './dto/update-route.dto.js';
 import { RouteSegmentDto } from './dto/route-segment.dto.js';
 import { RouteSummaryDto } from './dto/route-summary.dto.js';
 import { RouteFeatureDto } from './dto/route-feature.dto.js';
@@ -22,6 +29,13 @@ interface ResolvedSegment {
   stored: StoredSegment;
   // Coordinates that make up this stretch of the final route
   leg: Position[];
+}
+
+// What create and update store for a set of segments
+interface BuiltRoute {
+  type: RouteType;
+  segments: StoredSegment[];
+  geometry: LineString;
 }
 
 interface RouteSummaryRow {
@@ -48,16 +62,38 @@ const SELECT_ROUTE_FEATURE_SQL = `
 
 // Simplified in metres (METRIC_SRID) and stored back in EPSG:4326.
 // preserveCollapsed = true keeps very short routes from collapsing to nothing.
+// A NULL GeoJSON parameter gives a NULL geometry (used by UPDATE to keep the current one).
+const simplifiedGeomSql = (geoJsonParam: string, toleranceParam: string): string => `
+    ST_Transform(
+      ST_Simplify(ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON(${geoJsonParam}::text), 4326), ${METRIC_SRID}), ${toleranceParam}::float8, true),
+      4326
+    )`;
+
 const INSERT_ROUTE_SQL = `
   INSERT INTO routing.routes (name, description, type, segments, geom)
-  VALUES (
-    $1, $2, $3, $4::jsonb,
-    ST_Transform(
-      ST_Simplify(ST_Transform(ST_SetSRID(ST_GeomFromGeoJSON($5::text), 4326), ${METRIC_SRID}), $6::float8, true),
-      4326
-    )
-  )
+  VALUES ($1, $2, $3, $4::jsonb, ${simplifiedGeomSql('$5', '$6')})
   RETURNING id, name, description, type, created_at`;
+
+// NULL parameters keep the current value; $3 says whether description was sent (null clears it).
+// Raw SQL does not trigger TypeORM's @UpdateDateColumn, so updated_at is set here.
+const UPDATE_ROUTE_SQL = `
+  UPDATE routing.routes SET
+    name = COALESCE($2::varchar, name),
+    description = CASE WHEN $3::boolean THEN $4::text ELSE description END,
+    type = COALESCE($5::varchar, type),
+    segments = COALESCE($6::jsonb, segments),
+    geom = COALESCE(${simplifiedGeomSql('$7', '$8')}, geom),
+    updated_at = now()
+  WHERE id = $1
+  RETURNING id, name, description, type, created_at`;
+
+const toSummary = (row: RouteSummaryRow): RouteSummaryDto => ({
+  id: row.id,
+  name: row.name,
+  description: row.description,
+  type: row.type,
+  createdAt: row.created_at,
+});
 
 @Injectable()
 export class RoutingService {
@@ -69,24 +105,20 @@ export class RoutingService {
   ) {}
 
   async create(createRouteDto: CreateRouteDto): Promise<RouteSummaryDto> {
-    // ORS legs are requested in parallel; Promise.all keeps the segment order for stitching
-    const resolved = await Promise.all(createRouteDto.segments.map((segment, index) => this.resolveSegment(segment, index)));
-    const segments = resolved.map((item) => item.stored);
-    const geometry = stitchLegs(resolved.map((item) => item.leg));
-    const type = deriveRouteType(segments.map((segment) => segment.mode));
+    const route = await this.buildRoute(createRouteDto.segments);
 
     const result = await this.postgis.query<RouteSummaryRow>(INSERT_ROUTE_SQL, [
       createRouteDto.name,
       createRouteDto.description ?? null,
-      type,
-      JSON.stringify(segments),
-      JSON.stringify(geometry),
+      route.type,
+      JSON.stringify(route.segments),
+      JSON.stringify(route.geometry),
       SIMPLIFY_TOLERANCE_M,
     ]);
 
     const row = result.rows[0];
     if (!row) throw new InternalServerErrorException('The route was not stored');
-    return { id: row.id, name: row.name, description: row.description, type: row.type, createdAt: row.created_at };
+    return toSummary(row);
   }
 
   // Metadata only (no geometry, no segments), newest first: feeds the client's route list
@@ -115,6 +147,43 @@ export class RoutingService {
         segments: row.segments,
         createdAt: row.created_at,
       },
+    };
+  }
+
+  async update(id: number, updateRouteDto: UpdateRouteDto): Promise<RouteSummaryDto> {
+    if (id < 1 || id > MAX_ROUTE_ID) throw new NotFoundException(`Route ${id} not found`);
+    const { name, description, segments } = updateRouteDto;
+    if (name === undefined && description === undefined && segments === undefined) {
+      throw new BadRequestException('Nothing to update: send name, description and/or segments');
+    }
+
+    const route = segments === undefined ? undefined : await this.buildRoute(segments);
+
+    const result = await this.postgis.query<RouteSummaryRow>(UPDATE_ROUTE_SQL, [
+      id,
+      name ?? null,
+      description !== undefined,
+      description ?? null,
+      route?.type ?? null,
+      route ? JSON.stringify(route.segments) : null,
+      route ? JSON.stringify(route.geometry) : null,
+      SIMPLIFY_TOLERANCE_M,
+    ]);
+
+    const row = result.rows[0];
+    if (!row) throw new NotFoundException(`Route ${id} not found`);
+    return toSummary(row);
+  }
+
+  // Shared by create and update: route the ors segments, stitch all legs and derive the type
+  private async buildRoute(segmentDtos: RouteSegmentDto[]): Promise<BuiltRoute> {
+    // ORS legs are requested in parallel; Promise.all keeps the segment order for stitching
+    const resolved = await Promise.all(segmentDtos.map((segment, index) => this.resolveSegment(segment, index)));
+    const segments = resolved.map((item) => item.stored);
+    return {
+      type: deriveRouteType(segments.map((segment) => segment.mode)),
+      segments,
+      geometry: stitchLegs(resolved.map((item) => item.leg)),
     };
   }
 
