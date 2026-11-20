@@ -18,7 +18,7 @@ import type { OrsRoute } from '../../core/infrastructure/ors/ors.types.js';
 describe('RoutingService', () => {
   const postgis = { query: vi.fn() };
   const ors = { getDrivingRoute: vi.fn() };
-  const routeRepository = { find: vi.fn() };
+  const routeRepository = { find: vi.fn(), delete: vi.fn() };
   let service: RoutingService;
 
   const createdAt = new Date('2026-11-19T10:00:00Z');
@@ -325,6 +325,24 @@ describe('RoutingService', () => {
         }),
       ).rejects.toBeInstanceOf(HttpException);
       expect(postgis.query).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('remove', () => {
+    it('deletes the route by id', async () => {
+      routeRepository.delete.mockResolvedValue({ affected: 1, raw: [] });
+      await expect(service.remove(7)).resolves.toBeUndefined();
+      expect(routeRepository.delete).toHaveBeenCalledWith(7);
+    });
+
+    it('throws 404 when no route was deleted', async () => {
+      routeRepository.delete.mockResolvedValue({ affected: 0, raw: [] });
+      await expect(service.remove(404)).rejects.toThrow(new NotFoundException('Route 404 not found'));
+    });
+
+    it('throws 404 without querying for an impossible id', async () => {
+      await expect(service.remove(0)).rejects.toBeInstanceOf(NotFoundException);
+      expect(routeRepository.delete).not.toHaveBeenCalled();
     });
   });
 });

@@ -175,6 +175,12 @@ export class RoutingService {
     return toSummary(row);
   }
 
+  async remove(id: number): Promise<void> {
+    if (id < 1 || id > MAX_ROUTE_ID) throw new NotFoundException(`Route ${id} not found`);
+    const result = await this.routeRepository.delete(id);
+    if (!result.affected) throw new NotFoundException(`Route ${id} not found`);
+  }
+
   // Shared by create and update: route the ors segments, stitch all legs and derive the type
   private async buildRoute(segmentDtos: RouteSegmentDto[]): Promise<BuiltRoute> {
     // ORS legs are requested in parallel; Promise.all keeps the segment order for stitching

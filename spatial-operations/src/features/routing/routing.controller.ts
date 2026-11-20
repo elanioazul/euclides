@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Patch, Body, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe, HttpCode, HttpStatus } from '@nestjs/common';
 import {
   ApiBadGatewayResponse,
   ApiBadRequestResponse,
   ApiBody,
   ApiCreatedResponse,
   ApiGatewayTimeoutResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -80,5 +81,15 @@ export class RoutingController {
   @ApiGatewayTimeoutResponse({ description: 'OpenRouteService did not answer in time' })
   update(@Param('id', ParseIntPipe) id: number, @Body() updateRouteDto: UpdateRouteDto): Promise<RouteSummaryDto> {
     return this.routingService.update(id, updateRouteDto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a route' })
+  @ApiNoContentResponse({ description: 'The route was deleted' })
+  @ApiBadRequestResponse({ description: 'id is not an integer' })
+  @ApiNotFoundResponse({ description: 'No route with this id' })
+  remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    return this.routingService.remove(id);
   }
 }
